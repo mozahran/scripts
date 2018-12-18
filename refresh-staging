@@ -1,0 +1,55 @@
+#!/bin/bash
+
+COLOR_BLANK=$(echo -en '\001\033[0m\002')
+COLOR_RED=$(echo -en '\001\033[00;31m\002')
+COLOR_GREEN=$(echo -en '\001\033[00;32m\002')
+COLOR_YELLOW=$(echo -en '\001\033[00;33m\002')
+COLOR_BLUE=$(echo -en '\001\033[00;34m\002')
+COLOR_CYAN=$(echo -en '\001\033[00;36m\002')
+
+TEXT_BOLD=$(tput bold)
+TEXT_NORMAL=$(tput sgr0)
+
+STAGING_BRANCH="customer"
+MASTER_BRANCH="master"
+MOONSHOT_PATH="/var/www/html/moonshot"
+
+echo -e "\n${COLOR_RED}${TEXT_BOLD}Refresh Staging Tool v1.0${TEXT_NORMAL}${COLOR_BLANK}\n"
+
+cd $MOONSHOT_PATH
+echo "Checkout the ${MASTER_BRANCH} branch"
+git checkout master &> /dev/null
+echo "${COLOR_YELLOW}Pull the latest changes${COLOR_BLANK}"
+git fetch -a &> /dev/null
+echo "Drop local ${COLOR_GREEN}${STAGING_BRANCH}${COLOR_BLANK} branch"
+git branch -D $STAGING_BRANCH &> /dev/null
+echo "Drop remote ${COLOR_GREEN}${STAGING_BRANCH}${COLOR_BLANK} branch"
+git push origin --delete $STAGING_BRANCH &> /dev/null
+echo "Checkout the new ${COLOR_GREEN}${STAGING_BRANCH}${COLOR_BLANK} branch"
+git checkout master &> /dev/null
+git checkout -b $STAGING_BRANCH &> /dev/null
+echo -e "\n## Start merging remote branches...\n"
+MERGE_COUNTER=0
+while true
+do
+    echo -n "${COLOR_CYAN}Branch (leave blank to continue): ${COLOR_BLANK}"
+    read BRANCH
+    if [ -z "${BRANCH}" ]
+    then
+        if [ "${MERGE_COUNTER}" -gt 0 ]
+        then
+            echo -e "\n## Finished merging remote branches"
+        fi
+        break
+    else
+        let "MERGE_COUNTER++"
+        echo -e "${COLOR_YELLOW}Merging:${COLOR_BLANK} ${COLOR_GREEN}${BRANCH}${COLOR_BLANK}\n"
+        git pull origin ${BRANCH} &> /dev/null
+    fi
+done < "${1:-/dev/stdin}"
+
+echo -e "\n${COLOR_YELLOW}Build the ${STAGING_BRANCH} staging branch ${COLOR_BLANK}"
+git push -u origin $STAGING_BRANCH &> /dev/null
+curl -X POST --data-urlencode "payload={\"channel\": \"#deployments\", \"text\": \"Building ${STAGING_BRANCH} branch using Refresh Staging Tool v1.0\"}" https://hooks.slack.com/services/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
+curl -X POST --data-urlencode "payload={\"channel\": \"#deployments\", \"text\": \"<@UCQA3K6E6> build ${STAGING_BRANCH}\"}" https://hooks.slack.com/services/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
+echo -e "${COLOR_GREEN}Everything is now staged! Happy coding :)\n${COLOR_BLANK}"
